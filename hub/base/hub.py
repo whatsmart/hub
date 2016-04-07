@@ -4,8 +4,8 @@
 
 import os
 import asyncio
-from hipc import *
-from component import *
+from .hipc import *
+from .component import *
 
 class HubProtocol(asyncio.Protocol):
     def __init__(self):
