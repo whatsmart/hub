@@ -6,3 +6,4 @@ class Component(object):
         self.name = ""
         self.type = ""
         self.transport = None
+        self.state = ""

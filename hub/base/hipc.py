@@ -5,6 +5,8 @@ import binascii
 class HIPCParser(object):
     def __init__(self):
         self.state = "ready"
+        self._type = ""
+        self._version = ""
         self._interface = ""
         self._length = None
         self._checksum = None
@@ -32,7 +34,9 @@ class HIPCParser(object):
 
                     if line.strip().startswith("HIPC"):
                         tags = line.split(" ")
-                        self._interface = tags[1].strip()
+                        self._type = tags[1].strip()
+                        self._interface = tags[2].strip()
+                        self._version = tags[3].strip()
 #                        print(self._interface)
                     if line.strip().startswith("length"):
                         l = line.split(":")
@@ -83,6 +87,9 @@ class HIPCParser(object):
     def set_protocol(self, protocol):
         self.protocol = protocol
 
+    def get_protocol(self):
+        return self.protocol
+
     def get_body_length(self):
         return self._length
 
@@ -94,3 +101,32 @@ class HIPCParser(object):
 
     def get_body(self):
         return self._body
+
+    def get_type(self):
+        return self._type
+
+class HIPCSerializer(object):
+    def __init__(self):
+        self._type = ""
+        self._interface = ""
+        self._length = None
+        self._checksum = None
+        self._body = ""
+
+    def set_type(self, type):
+        self._type = type
+
+    def set_interface(self, interface):
+        self._interface = interface
+
+    def set_body(self, body):
+        self._body = body
+
+    def serialize(self):
+        be = self._body.encode("utf-8")
+        s = bytes()
+        s += "HIPC ".encode("utf-8") + self._type.encode("utf-8") + " ".encode("utf-8") + self._interface.encode("utf-8") + " 1.0\r\n".encode("utf-8")
+        s += "length: ".encode("utf-8") + str(len(be)).encode("utf-8") + "\r\n".encode("utf-8")
+        s += "checksum: ".encode("utf-8") + str(binascii.crc32(be)).encode("utf-8") + "\r\n\r\n".encode("utf-8")
+        s += be
+        return s
