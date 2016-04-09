@@ -40,8 +40,10 @@ class IComponent(object):
             j = json.dumps(o)
 #            print(j)
             ser = HIPCSerializer()
-            ser.set_interface(self.ipc.get_interface())
+            ser.set_resource(self.ipc.get_resource())
             ser.set_type("response")
+            if self.ipc.get_pid():
+                ser.set_rid(self.ipc.get_pid())
             ser.set_body(j)
             s = ser.serialize()
             #lock is not necessary here, in distpach_rpc, there is no yield
