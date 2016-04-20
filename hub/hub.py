@@ -21,26 +21,6 @@ class Hub (object):
     def set_protocol(self, protocol):
         self.protocol = protocol
 
-    def add_component(self, component):
-        cids = []
-        for com in hub.components:
-            cids.append(com.id)
-
-        if len(cids) > 0:
-            for i in range(len(cids)+1):
-                if i not in cids:
-                    component.id = i
-        else:
-            component.id = 0;
-
-        self.components.append(component)
-
-    def get_component_by_transport(self, transport):
-        for com in self.components:
-            if transport is com.transport:
-                return com
-        return None
-
     def start(self):
         if os.access("/tmp/hub_sock", os.F_OK):
             os.remove("/tmp/hub_sock")

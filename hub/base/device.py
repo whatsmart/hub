@@ -3,6 +3,7 @@
 class Device(object):
     def __init__(self):
         self.id = None
+        self.cid = None
         self.uniqid = None
         self.name = ""
         self.position = ""
@@ -10,4 +11,4 @@ class Device(object):
         self.hwversion = ""
         self.swversion = ""
         self.type = ""
-        self.interface = []
+        self.operations = []

@@ -10,9 +10,7 @@ class HIPCParser(object):
         self._resource = ""
         self._length = None
         self._checksum = None
-        self._origin = ""
-        self._pid = None
-        self._rid = None
+        self._id = None
         self._body = ""
         self._data = ""
         self._cursor = 0
@@ -48,15 +46,9 @@ class HIPCParser(object):
                     if line.strip().startswith("checksum"):
                         s = line.split(":")
                         self._checksum = int(s[1].strip())
-                    if line.strip().startswith("origin"):
-                        a = line.split(":")
-                        self._origin = a[1].strip()
-                    if line.strip().startswith("pid"):
+                    if line.strip().startswith("id"):
                         p = line.split(":")
-                        self._pid = int(p[1].strip())
-                    if line.strip().startswith("rid"):
-                        r = line.split(":")
-                        self._rid = int(r[1].strip())
+                        self._id = int(p[1].strip())
                     if self._cursor == index - 1:
 #                        print("cound tem");
                         self.state = "header_found"
@@ -73,7 +65,7 @@ class HIPCParser(object):
                     self.parse(bytes())
                 else:
                     self.state = "finished"
-                    self.protocol.handle_rpc(self)
+                    self.protocol.handle_ipc(self)
 
                     if len(self._data) - self._cursor > self._length:
 #                       print(len(self._data) - self._cursor - self._length)
@@ -92,6 +84,10 @@ class HIPCParser(object):
             self._data = self._data[self._cursor+self._length:]
         else:
             self._data = ""
+        self._type = ""
+        self._version = ""
+        self._checksum = None
+        self._id = None
         self._cursor = 0
         self._length = None
         self.state = "ready"
@@ -117,14 +113,8 @@ class HIPCParser(object):
     def get_checksum(self):
         return self._checksum
 
-    def get_origin(self):
-        return self._origin
-
-    def get_pid(self):
-        return self._pid
-
-    def get_rid(self):
-        return self._rid
+    def get_id(self):
+        return self._id
 
     def get_body(self):
         return self._body
@@ -136,9 +126,7 @@ class HIPCSerializer(object):
         self._resource = ""
         self._length = None
         self._checksum = None
-        self._origin = ""
-        self._pid = None
-        self._rid = None
+        self._id = None
         self._body = ""
 
     def set_version(self, version):
@@ -150,19 +138,21 @@ class HIPCSerializer(object):
     def set_resource(self, resource):
         self._resource = resource
 
-    def set_origin(self, origin):
-        self._origin = origin
-
-    def set_pid(self, pid):
-        self._pid = pid
-
-    def set_rid(self, rid):
-        self._rid = rid
+    def set_id(self, pid):
+        self._id = pid
 
     def set_body(self, body):
         self._body = body
 
     def serialize(self):
+        try:
+            assert self._type
+            if self._type == "request":
+                assert self._resource
+            assert self._id
+        except AssertionError:
+            print("Please confirm type, resource and id are not null")
+
         be = self._body.encode("utf-8")
         s = ""
         if self._version:
@@ -171,11 +161,6 @@ class HIPCSerializer(object):
             s += "HIPC/1.0" + " " + self._type + " " + self._resource + "\r\n"
         s += "length: " + str(len(be)) + "\r\n"
         s += "checksum: " + str(binascii.crc32(be)) + "\r\n"
-        if self._origin:
-            s += "origin: " + self._origin + "\r\n"
-        if self._pid:
-            s += "pid: " + str(self._pid) + "\r\n"
-        if self._rid:
-            s += "rid: " + str(self._rid) + "\r\n\r\n"
+        s += "id: " + str(self._id) + "\r\n"
         s += self._body
         return s.encode("utf-8")

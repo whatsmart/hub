@@ -3,7 +3,7 @@
 import asyncio
 import json
 import copy
-from .dispatch import dispatch_rpc
+from .dispatch import dispatch_ipc
 from .base import hipc
 from .base import component
 from .interface import icomponent
@@ -21,9 +21,9 @@ class HubProtocol(asyncio.Protocol):
         self.transport = transport
         #component
         comp = component.Component()
-        comp.state = "not_detailed"
         comp.transport = self.transport
-        self.hub.add_component(comp)
+        icomp = icomponent.IComponent(self.hub)
+        icomp.add_component(comp)
 
     def conection_lost(self, exc):
         pass
@@ -31,19 +31,17 @@ class HubProtocol(asyncio.Protocol):
     def data_received(self, data):
         self.ipc.parse(data)
 
-    def handle_rpc(self, ipc):
+    def handle_ipc(self, ipc):
         protocol = copy.copy(self)
         cipc = copy.copy(ipc)
 
-        coro = dispatch_rpc(protocol, cipc)
+        coro = dispatch_ipc(cipc)
         self.hub.loop.create_task(coro)
 
-        print(ipc.get_version())
-        print(ipc.get_type())
-        print(ipc.get_resource())
-        print(ipc.get_length())
-        print(ipc.get_checksum())
-        print(ipc.get_origin())
-        print(ipc.get_pid())
-        print(ipc.get_rid())
-        print(ipc.get_body())
+#        print(ipc.get_version())
+#        print(ipc.get_type())
+#        print(ipc.get_resource())
+#        print(ipc.get_length())
+#        print(ipc.get_checksum())
+#        print(ipc.get_id())
+#        print(ipc.get_body())

@@ -1,20 +1,49 @@
 
 import json
 from ..base.hipc import HIPCSerializer
+from ..base import component
 
 class IComponent(object):
-    def __init__(self, ipc):
-        self.ipc = ipc
+    def __init__(self, hub = None):
+        self.hub = hub
 
-    def handle(self):
+    def handle_ipc(self):
+        self.hub = ipc.protocol.hub
+        resource = ipc.get_resource()
         body = self.ipc.get_body()
-        obj = json.loads(body)
-        method = obj["method"]
-        params = obj["params"]
 
-        m = eval("self." + method)
-        m(obj)
-#        self.echo_com_name()
+        obj = json.loads(body)
+        if "method" in obj.keys():
+            method = obj["method"]
+        if "params" in obj.keys():
+            params = obj["params"]
+
+
+    def add_component(self, comp):
+        cids = []
+        for com in self.hub.components:
+            cids.append(com.id)
+
+        if len(cids) > 0:
+            for i in range(len(cids)+1):
+                if i not in cids:
+                    comp.id = i
+        else:
+            comp.id = 0;
+
+        self.hub.components.append(comp)
+
+    def get_component_by_transport(self, transport):
+        for com in self.hub.components:
+            if transport is com.transport:
+                return com
+        return None
+
+    def get_component(self, cid):
+        for com in self.hub.components:
+            if com.id == cid:
+                return com
+        return None
 
     def register_component(self, obj):
         params = obj["params"]
@@ -24,7 +53,7 @@ class IComponent(object):
 
             name = params["name"]
             ctype = params["type"]
-            com = hub.get_component_by_transport(self.ipc.get_protocol().transport)
+            com = self.hub.get_component_by_transport(self.ipc.get_protocol().transport)
             com.name = name
             com.type = ctype
             cid = com.id
@@ -42,16 +71,9 @@ class IComponent(object):
             ser = HIPCSerializer()
             ser.set_resource(self.ipc.get_resource())
             ser.set_type("response")
-            if self.ipc.get_pid():
-                ser.set_rid(self.ipc.get_pid())
+            if self.ipc.get_id():
+                ser.set_rid(self.ipc.get_id())
             ser.set_body(j)
             s = ser.serialize()
             #lock is not necessary here, in distpach_rpc, there is no yield
             self.ipc.protocol.transport.write(s)
-            
-    
-    def echo_com_name(self):
-        hub = self.ipc.get_protocol().hub
-        for com in hub.components:
-            print(com.id, com.name, com.type, sep=" ")
-    
