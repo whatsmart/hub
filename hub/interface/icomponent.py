@@ -4,11 +4,11 @@ from ..base.hipc import HIPCSerializer
 from ..base import component
 
 class IComponent(object):
-    def __init__(self, hub = None):
-        self.hub = hub
+    def __init__(self, ipc):
+        self.ipc = ipc
+        self.hub = self.ipc.get_protocol().hub
 
     def handle_ipc(self):
-        self.hub = ipc.protocol.hub
         resource = ipc.get_resource()
         body = self.ipc.get_body()
 
@@ -71,8 +71,6 @@ class IComponent(object):
             ser = HIPCSerializer()
             ser.set_resource(self.ipc.get_resource())
             ser.set_type("response")
-            if self.ipc.get_id():
-                ser.set_rid(self.ipc.get_id())
             ser.set_body(j)
             s = ser.serialize()
             #lock is not necessary here, in distpach_rpc, there is no yield

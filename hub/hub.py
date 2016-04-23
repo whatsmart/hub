@@ -12,18 +12,16 @@ class Hub (object):
         self.services = []
         self.tasks = []
         self.components = []
-        self.socketpath = "dasfasdf"
-        self.socket = None
-        self.connections = []
+        #event listeners, each is event -> [cid1, cid2, ...]
+        self.evlisteners = {}
         self.protocol = None
         self.loop = asyncio.get_event_loop()
-
-    def set_protocol(self, protocol):
-        self.protocol = protocol
 
     def start(self):
         if os.access("/tmp/hub_sock", os.F_OK):
             os.remove("/tmp/hub_sock")
+
+        self.protocol = HubProtocol
         self.protocol.hub = self
         server = self.loop.create_unix_server(self.protocol, "/tmp/hub_sock");
         self.loop.create_task(server)
@@ -31,6 +29,5 @@ class Hub (object):
 
 if __name__ == "__main__":
     hub = Hub()
-    hub.set_protocol(HubProtocol)
 
     hub.start()

@@ -4,7 +4,7 @@ class Device(object):
     def __init__(self):
         self.id = None
         self.cid = None
-        self.uniqid = None
+        self.uniqid = ""
         self.name = ""
         self.position = ""
         self.vender = ""

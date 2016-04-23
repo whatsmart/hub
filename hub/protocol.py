@@ -10,23 +10,33 @@ from .interface import icomponent
 
 class HubProtocol(asyncio.Protocol):
     def __init__(self):
-        print("protocol create")
-
-    def connection_made(self, transport):
-        print("connection made")
-        #init
         self.ipc = hipc.HIPCParser()
         self.ipc.set_protocol(self)
         self.hub = HubProtocol.hub
+        self.transport = None
+#        print("protocol create")
+
+    def connection_made(self, transport):
+        print("connection made")
         self.transport = transport
         #component
         comp = component.Component()
         comp.transport = self.transport
-        icomp = icomponent.IComponent(self.hub)
+        
+        icomp = icomponent.IComponent(self.ipc)
         icomp.add_component(comp)
 
-    def conection_lost(self, exc):
-        pass
+    def connection_lost(self, exc):
+        print("connection lost")
+        icom = icomponent.IComponent(self.ipc)
+
+        c = icom.get_component_by_transport(self.transport)
+
+        for d in self.hub.devices:
+            if d.cid == c.id:
+                self.hub.devices.remove(d)
+
+        self.hub.components.remove(c)
 
     def data_received(self, data):
         self.ipc.parse(data)
@@ -43,5 +53,5 @@ class HubProtocol(asyncio.Protocol):
 #        print(ipc.get_resource())
 #        print(ipc.get_length())
 #        print(ipc.get_checksum())
-#        print(ipc.get_id())
+#        print(ipc.get_origin())
 #        print(ipc.get_body())

@@ -4,21 +4,21 @@ import binascii
 
 class HIPCParser(object):
     def __init__(self):
-        self.state = "ready"
+        self._state = "ready"
         self._type = ""
         self._version = ""
         self._resource = ""
         self._length = None
         self._checksum = None
-        self._id = None
+        self._origin = ""
         self._body = ""
         self._data = ""
         self._cursor = 0
-        self.protocol = None
+        self._protocol = None
 
     def parse(self, data):
         self._data = self._data + data.decode("utf-8")
-        if self.state == "ready":
+        if self._state == "ready":
             if self._data.find("\r\n") == -1:
                 return
             if not self._data.startswith("HIPC"):
@@ -46,17 +46,17 @@ class HIPCParser(object):
                     if line.strip().startswith("checksum"):
                         s = line.split(":")
                         self._checksum = int(s[1].strip())
-                    if line.strip().startswith("id"):
+                    if line.strip().startswith("origin"):
                         p = line.split(":")
-                        self._id = int(p[1].strip())
+                        self._origin = int(p[1].strip())
                     if self._cursor == index - 1:
 #                        print("cound tem");
-                        self.state = "header_found"
+                        self._state = "header_found"
                         self._cursor = index + 1
                         break;
                     self._cursor = index + 1
 
-        if self.state == "header_found":
+        if self._state == "header_found":
             if len(self._data) - self._cursor >= self._length:
                 self._body = self._data[self._cursor:self._cursor+self._length]
                 sum = binascii.crc32(self._body.encode("utf-8"))
@@ -64,8 +64,8 @@ class HIPCParser(object):
                     self._data = self._data[4:]
                     self.parse(bytes())
                 else:
-                    self.state = "finished"
-                    self.protocol.handle_ipc(self)
+                    self._state = "finished"
+                    self._protocol.handle_ipc(self)
 
                     if len(self._data) - self._cursor > self._length:
 #                       print(len(self._data) - self._cursor - self._length)
@@ -90,13 +90,13 @@ class HIPCParser(object):
         self._id = None
         self._cursor = 0
         self._length = None
-        self.state = "ready"
+        self._state = "ready"
 
     def set_protocol(self, protocol):
-        self.protocol = protocol
+        self._protocol = protocol
 
     def get_protocol(self):
-        return self.protocol
+        return self._protocol
 
     def get_version(self):
         return self._version
@@ -113,21 +113,21 @@ class HIPCParser(object):
     def get_checksum(self):
         return self._checksum
 
-    def get_id(self):
-        return self._id
+    def get_origin(self):
+        return self._origin
 
     def get_body(self):
         return self._body
 
 class HIPCSerializer(object):
-    def __init__(self):
-        self._version = ""
-        self._type = ""
-        self._resource = ""
+    def __init__(self, mtype = "", version = "", resource = "", origin = "", body = ""):
+        self._version = version
+        self._type = mtype
+        self._resource = resource
         self._length = None
         self._checksum = None
-        self._id = None
-        self._body = ""
+        self._origin = origin
+        self._body = body
 
     def set_version(self, version):
         self._version = version
@@ -138,8 +138,8 @@ class HIPCSerializer(object):
     def set_resource(self, resource):
         self._resource = resource
 
-    def set_id(self, pid):
-        self._id = pid
+    def set_origin(self, origin):
+        self._origin = origin
 
     def set_body(self, body):
         self._body = body
@@ -149,18 +149,29 @@ class HIPCSerializer(object):
             assert self._type
             if self._type == "request":
                 assert self._resource
-            assert self._id
         except AssertionError:
-            print("Please confirm type, resource and id are not null")
+            print("Please confirm type, resource are not null")
 
         be = self._body.encode("utf-8")
         s = ""
         if self._version:
-            s += "HIPC/" + self._version + " " + self._type + " " + self._resource + "\r\n"
+            s += "HIPC/" + self._version + " " + self._type
         else:
-            s += "HIPC/1.0" + " " + self._type + " " + self._resource + "\r\n"
+            s += "HIPC/1.0" + " " + self._type
+        if self._type == "response":
+            s += "\r\n"
+        elif self._type == "request":
+            s += " " + self._resource + "\r\n"
         s += "length: " + str(len(be)) + "\r\n"
         s += "checksum: " + str(binascii.crc32(be)) + "\r\n"
-        s += "id: " + str(self._id) + "\r\n"
+        if self._origin:
+            s += "origin: " + str(self._origin) + "\r\n"
+        s += "\r\n"
         s += self._body
-        return s.encode("utf-8")
+        return s
+
+    def get_binary(self):
+        return self.serialize().encode("utf-8")
+
+    def get_string(self):
+        return self.serialize()
