@@ -3,6 +3,8 @@
 from ..base.hipc import HIPCResponseSerializer
 from ..base import jsonrpc
 from . import ievent
+import json
+import traceback
 
 class IMessage(object):
 
@@ -11,7 +13,7 @@ class IMessage(object):
         self.routes = ipc.get_routes()
         self.req = jsonrpc.RequestParser(ipc.get_body()).parse()
         self.protocol = ipc.get_protocol()
-        self.hub = ipc.protocol.hub
+        self.hub = self.protocol.hub
         self.iev = ievent.IEvent(ipc)
 
     def get_message(self, mid):
@@ -19,17 +21,21 @@ class IMessage(object):
             msg = self.hub.messages.get(mid)
             assert(msg)
         except Exception:
+            traceback.print_exc()
             body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
         else:
             body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = msg).build()
         finally:
             ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
             sb = ser.get_binary()
-            self.transport.write(sb)
+            self.protocol.transport.write(sb)
 
     def send_message(self, message):
         try:
-            mid = max(self.hub.messages.keys()) + 1
+            if len(self.hub.messages) > 0:
+                mid = max(self.hub.messages.keys()) + 1
+            else:
+                mid = 0
             self.hub.messages[mid] = message
 
             event = {
@@ -39,22 +45,23 @@ class IMessage(object):
                 }
             }
         except Exception:
+            traceback.print_exc()
             body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
+            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+            self.protocol.transport.write(ser.get_binary())
         else:
             body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
-        finally:
             ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
-            iev.report_event(event)
+            self.protocol.transport.write(ser.get_binary())
+            self.iev.report_event(event)
 
     def handle_ipc(self):
-        obj = json.loads(self.ipc.get_body())
-        params = obj.get("params")
-        method = obj.get("method")
-        mid = obj.get("id")
+        params = self.req.params
+        method = self.req.method
 
         if method == "get_message":
-            mid = params.get("id")
-            self.get_message(visible, time)
+            mid = int(params.get("id"))
+            self.get_message(mid)
         elif method == "send_message":
-            msg = prams.get("message")
+            msg = params.get("message")
             self.send_message(msg)

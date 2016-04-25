@@ -3,6 +3,7 @@
 from ..base.hipc import HIPCResponseSerializer
 from ..base import jsonrpc
 from ..base import component
+import traceback
 
 class IComponent(object):
     def __init__(self, ipc):
@@ -15,7 +16,7 @@ class IComponent(object):
 
     def handle_ipc(self):
         if self.req.method == "register_component":
-            self.register_component(req.params)
+            self.register_component(self.req.params)
 
     def add_component(self, comp):
         cids = []
@@ -49,14 +50,14 @@ class IComponent(object):
             name = params.get("name") if params.get("name") else ""
             ctype = params.get("type") if params.get("type") else ""
 
-            com = self.hub.get_component_by_transport(self.protocol.transport)
+            com = self.get_component_by_transport(self.protocol.transport)
             com.name = name
             com.type = ctype
             cid = com.id
         except Exception:
-            body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
+            body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id, data=traceback.format_exc()).build()
         else:
             body = jsonrpc.ResultBuilder(result = cid, rpcid = self.req.id).build()
         finally:
             ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
-            self.protocol.transport.write(s)
+            self.protocol.transport.write(ser)

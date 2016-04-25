@@ -95,7 +95,7 @@ class ILightingControl(object):
             ser.set_header("rt-component", str(self.ocid))
             tc.write(ser.get_binary())
 
-    def get_brightness(self, color):
+    def get_brightness(self):
         try:
             tc = self.icom.get_component(self.idev.get_device(self.did).cid).transport
         except Exception:

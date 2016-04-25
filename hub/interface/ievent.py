@@ -2,6 +2,7 @@
 
 from ..base.hipc import HIPCRequestSerializer, HIPCResponseSerializer
 from ..base import jsonrpc
+from . import icomponent
 
 class IEvent(object):
 
@@ -16,23 +17,25 @@ class IEvent(object):
 
     def report_event(self, event):
         evname = event.get("name").strip()
-        if evname in self.hub.evlisteners:
-            listeners = self.hub.evlisteners.get("name")
-            if len(listeners) > 0:
+        if evname in self.hub.evlisteners.keys():
+            listeners = self.hub.evlisteners.get(evname)
+            if listeners and len(listeners) > 0:
                 body = jsonrpc.RequestBuilder(method = "report_event", params = event).build()
                 ser = HIPCRequestSerializer(resource = "event", version = self.ipc_version, body = body)
                 sb = ser.get_binary()
-            for cid in listeners:
-                if cid != self.ocid:
-                    self.icom.get_component(cid).transport.write(sb)
+                for cid in listeners:
+                    if cid != self.ocid:
+                        self.icom.get_component(cid).transport.write(sb)
 
     def listen_event(self, names):
         try:
             for name in names:
-                if name not in self.hub.evlisteners:
-                    self.hub.evlisteners[name] = [self.ocid]
+#                print(name.strip())
+                if name.strip() not in self.hub.evlisteners:
+                    self.hub.evlisteners[name.strip()] = [self.ocid]
                 else:
-                    self.hub.evlisteners.get(name).append(self.ocid)
+                    if self.ocid not in self.hub.evlisteners.get(name.strip()):
+                        self.hub.evlisteners.get(name.strip()).append(self.ocid)
         except Exception:
             body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
         else:
@@ -40,7 +43,7 @@ class IEvent(object):
         finally:
             ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
             sb = ser.get_binary()
-            self.transport.write(sb)
+            self.protocol.transport.write(sb)
 
     def handle_ipc(self):
         params = self.req.params

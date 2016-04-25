@@ -4,6 +4,8 @@ import asyncio
 from .interface import icomponent
 from .interface import icontrol
 from .interface import idevice
+from .interface import imessage
+from .interface import ievent
 from .base.hipc import HIPCResponseSerializer
 
 @asyncio.coroutine

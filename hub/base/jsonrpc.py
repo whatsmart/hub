@@ -80,6 +80,6 @@ class ErrorBuilder(object):
             "id": self.rpcid
         }
         if self.data:
-            obj["error"]["data"] = data
+            obj["error"]["data"] = self.data
 
         return json.dumps(obj)

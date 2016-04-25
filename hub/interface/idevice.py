@@ -6,6 +6,7 @@ from ..base import device
 from ..base.hipc import HIPCResponseSerializer
 from ..base import jsonrpc
 from . import icomponent
+from . import ievent
 
 class IDevice(object):
     def __init__(self, ipc):
@@ -16,6 +17,7 @@ class IDevice(object):
         self.protocol = ipc.get_protocol()
         self.hub = self.protocol.hub
         self.icom = icomponent.IComponent(ipc)
+        self.iev = ievent.IEvent(ipc)
 
     def add_device(self, dev):
         devices = self.hub.devices
@@ -37,7 +39,7 @@ class IDevice(object):
         devices = self.hub.devices
         for i, d in enumerate(devices):
             if d.id == did:
-                devices.pop([i])
+                devices.pop(i)
                 break
 
     def get_device(self, did):
@@ -97,29 +99,48 @@ class IDevice(object):
                     and isinstance(ndev.type, str) and isinstance(ndev.operations, list):
                     ndev.cid = self.icom.get_component_by_transport(self.protocol.transport).id
                     did = self.add_device(ndev)
+
+                    event = {
+                        "name": "device_added",
+                        "data": {
+                            "id": did
+                        }
+                    }
                 else:
                     raise Exception
             except Exception:
                 body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
-            else:
-                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = did).build()
-            finally:
                 ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
                 self.protocol.transport.write(ser.get_binary())
+            else:
+                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = did).build()
+                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                self.protocol.transport.write(ser.get_binary())
+                self.iev.report_event(event)
 
         elif method == "remove_device":
             try:
                 if isinstance(params.get("id"), int):
                     self.remove_device(params.get("id"))
+                    event = {
+                        "name": "device_removed",
+                        "data": {
+                            "id": params.get("id")
+                        }
+                    }
                 else:
                     raise Exception
             except Exception:
+                traceback.print_exc()
                 body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
-            else:
-                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
-            finally:
                 ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
                 self.protocol.transport.write(ser.get_binary())
+            else:
+                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
+                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                self.protocol.transport.write(ser.get_binary())
+                self.iev.report_event(event)
+
         elif method == "get_devices":
             try:
                 result = []
@@ -163,6 +184,7 @@ class IDevice(object):
                 else:
                     raise Exception
             except Exception:
+                traceback.print_exc()
                 body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
             else:
                 body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = name if name is not None else "").build()
@@ -185,12 +207,13 @@ class IDevice(object):
                 self.protocol.transport.write(ser.get_binary())
         elif method == "get_position":
             try:
-                did = int(resource.split("/")[1].strip())
+                did = int(self.resource.split("/")[1].strip())
                 if isinstance(did, int):
                     position = self.get_position(did)
                 else:
                     raise Exception
             except Exception:
+                traceback.print_exc()
                 body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
             else:
                 body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = position if position is not None else "").build()

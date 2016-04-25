@@ -18,7 +18,7 @@ class HubProtocol(asyncio.Protocol):
 #        print("protocol create")
 
     def connection_made(self, transport):
-        print("connection made")
+#        print("connection made")
         self.transport = transport
         #component
         comp = component.Component()
@@ -28,14 +28,20 @@ class HubProtocol(asyncio.Protocol):
         icomp.add_component(comp)
 
     def connection_lost(self, exc):
-        print("connection lost")
+#        print("connection lost")
         icom = icomponent.IComponent(self.ipc)
-
         c = icom.get_component_by_transport(self.transport)
-
+        rm = []
         for d in self.hub.devices:
             if d.cid == c.id:
+                rm.append(d)
+        for d in rm:
+            if d in self.hub.devices:
                 self.hub.devices.remove(d)
+
+        for k in self.hub.evlisteners:
+            if c.id in self.hub.evlisteners[k]:
+                self.hub.evlisteners[k].remove(c.id)
 
         self.hub.components.remove(c)
 
@@ -51,6 +57,7 @@ class HubProtocol(asyncio.Protocol):
         cipc._body = copy.copy(ipc.get_body())
         cipc._resource = copy.copy(ipc.get_resource())
         cipc._protocol = self
+        cipc._state = "finished"
 
         coro = dispatch_ipc(cipc)
         self.hub.loop.create_task(coro)

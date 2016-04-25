@@ -102,12 +102,52 @@ def sendcmd():
                 continue
             ser = HIPCRequestSerializer("control/" + str(args.devid))
             ser.set_body('{"jsonrpc": "2.0","method": "set_color","params":{"color": ' + str(args.color) + '},"id": 1}')
-            print(ser.get_string())
+            sock.send(ser.get_binary())
+
+            del args
+
+        elif cmd.split()[0].strip() == "get_brightness":
+
+            parser = argparse.ArgumentParser()
+            parser.add_argument("-d", dest="devid", type=int, required=True, help="the device id")
+            args = None
+            try:
+                args = parser.parse_args(cmd.split()[1:])
+            except Exception:
+                del args
+                continue
+
+            ser = HIPCRequestSerializer("control/" + str(args.devid))
+            ser.set_body('{"jsonrpc": "2.0","method": "get_brightness","id": 1}')
+            sock.send(ser.get_binary())
+
+            del args
+
+        elif cmd.split()[0].strip() == "set_brightness":
+
+            parser = argparse.ArgumentParser()
+            parser.add_argument("-d", dest="devid", type=int, required=True, help="the device id")
+            parser.add_argument("-b", dest="brightness", type=int, required=True, help="the color to set")
+            args = None
+            try:
+                args = parser.parse_args(cmd.split()[1:])
+            except Exception:
+                del args
+                continue
+            ser = HIPCRequestSerializer("control/" + str(args.devid))
+            ser.set_body('{"jsonrpc": "2.0","method": "set_brightness","params":{"brightness": ' + str(args.brightness) + '},"id": 1}')
             sock.send(ser.get_binary())
 
             del args
 
 def display():
+    ser = HIPCRequestSerializer("component")
+    ser.set_body('{"jsonrpc": "2.0","method": "register_component","params":{"name": "web user interface", "type": "WebInterface"},"id": 1}')
+    sock.send(ser.get_binary())
+
+    ser = HIPCRequestSerializer("event")
+    ser.set_body('{"jsonrpc": "2.0","method": "listen_event","params":["device_added","device_removed","message_arrived"],"id": 1}')
+    sock.send(ser.get_binary())
     while True:
         data = sock.recv(100)
         print(data)
