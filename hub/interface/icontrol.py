@@ -2,7 +2,7 @@
 
 from .idevice import IDevice
 from .ilightingcontrol import ILightingControl
-from .ilinkadapter import ILinkAdapter
+from .ilinkadapter import ILinkAdapterControl
 
 class IControl(object):
 
@@ -22,5 +22,5 @@ class IControl(object):
                 lc = ILightingControl(self.ipc)
                 lc.handle_ipc()
             elif device and device.type.lower() == "linkAdapter".lower():
-                lc = ILinkAdapter(self.ipc)
+                lc = ILinkAdapterControl(self.ipc)
                 lc.handle_ipc()

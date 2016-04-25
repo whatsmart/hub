@@ -1,23 +1,21 @@
+#!/usr/bin/env python3
 
-import json
-from ..base.hipc import HIPCSerializer
+from ..base.hipc import HIPCResponseSerializer
+from ..base import jsonrpc
 from ..base import component
 
 class IComponent(object):
     def __init__(self, ipc):
-        self.ipc = ipc
-        self.hub = self.ipc.get_protocol().hub
+        if ipc._state == "finished":
+            self.ipc_version = ipc.get_version()
+            self.routes = ipc.get_routes()
+            self.req = jsonrpc.RequestParser(ipc.get_body()).parse()
+        self.protocol = ipc.get_protocol()
+        self.hub = self.protocol.hub
 
     def handle_ipc(self):
-        resource = ipc.get_resource()
-        body = self.ipc.get_body()
-
-        obj = json.loads(body)
-        if "method" in obj.keys():
-            method = obj["method"]
-        if "params" in obj.keys():
-            params = obj["params"]
-
+        if self.req.method == "register_component":
+            self.register_component(req.params)
 
     def add_component(self, comp):
         cids = []
@@ -45,33 +43,20 @@ class IComponent(object):
                 return com
         return None
 
-    def register_component(self, obj):
-        params = obj["params"]
-        rid = obj["id"]
+    def register_component(self, params):
+        cid = None
         try:
-            hub = self.ipc.get_protocol().hub
+            name = params.get("name") if params.get("name") else ""
+            ctype = params.get("type") if params.get("type") else ""
 
-            name = params["name"]
-            ctype = params["type"]
-            com = self.hub.get_component_by_transport(self.ipc.get_protocol().transport)
+            com = self.hub.get_component_by_transport(self.protocol.transport)
             com.name = name
             com.type = ctype
             cid = com.id
-        except NameError:
-            pass
+        except Exception:
+            body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
         else:
-            o = {}
-            o["id"] = rid
-            o["jsonrpc"] = "2.0"
-            o["result"] = {}
-            o["result"]["code"] = "success"
-            o["result"]["id"] = cid
-            j = json.dumps(o)
-#            print(j)
-            ser = HIPCSerializer()
-            ser.set_resource(self.ipc.get_resource())
-            ser.set_type("response")
-            ser.set_body(j)
-            s = ser.serialize()
-            #lock is not necessary here, in distpach_rpc, there is no yield
-            self.ipc.protocol.transport.write(s)
+            body = jsonrpc.ResultBuilder(result = cid, rpcid = self.req.id).build()
+        finally:
+            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
+            self.protocol.transport.write(s)

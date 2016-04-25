@@ -6,6 +6,7 @@ import copy
 from .dispatch import dispatch_ipc
 from .base import hipc
 from .base import component
+from .base.hipc import HIPCParser
 from .interface import icomponent
 
 class HubProtocol(asyncio.Protocol):
@@ -42,8 +43,14 @@ class HubProtocol(asyncio.Protocol):
         self.ipc.parse(data)
 
     def handle_ipc(self, ipc):
-        protocol = copy.copy(self)
-        cipc = copy.copy(ipc)
+        cipc = HIPCParser()
+        cipc._type = copy.copy(ipc.get_type())
+        cipc._version = copy.copy(ipc.get_version())
+        cipc._resource = copy.copy(ipc.get_resource())
+        cipc._headers = copy.deepcopy(ipc.get_headers())
+        cipc._body = copy.copy(ipc.get_body())
+        cipc._resource = copy.copy(ipc.get_resource())
+        cipc._protocol = self
 
         coro = dispatch_ipc(cipc)
         self.hub.loop.create_task(coro)

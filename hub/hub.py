@@ -14,6 +14,8 @@ class Hub (object):
         self.components = []
         #event listeners, each is event -> [cid1, cid2, ...]
         self.evlisteners = {}
+        # id -> message
+        self.messages = {}
         self.protocol = None
         self.loop = asyncio.get_event_loop()
 

@@ -4,7 +4,7 @@ import asyncio
 from .interface import icomponent
 from .interface import icontrol
 from .interface import idevice
-from .base.hipc import HIPCSerializer
+from .base.hipc import HIPCResponseSerializer
 
 @asyncio.coroutine
 def dispatch_ipc(ipc):
@@ -15,22 +15,18 @@ def dispatch_ipc(ipc):
     protocol = ipc.get_protocol()
 
     if itype == "response":
-        origin = ipc.get_origin()
-        cid = int(origin.split(":")[0].split("/")[1].strip())
-        if ":" in origin:
-            rest = origin[origin.find(":")+1:]
-        else:
-            rest = ""
-        print(rest) #
-        component = icom.get_component(cid)
-        if component:
-            ser = HIPCSerializer()
-            ser.set_type("response")
-            ser.set_version(ipc.get_version())
-            if rest:
-                ser.set_origin(rest)
-            ser.set_body(ipc.get_body())
-            component.transport.write(ser.get_binary())
+        if "rt-component" in ipc.get_headers():
+            cid = int(ipc.get_header("rt-component"))
+            component = icom.get_component(cid)
+            if component:
+                ser = HIPCResponseSerializer()
+                ser.set_version(ipc.get_version())
+                for k in ipc.get_headers().keys():
+                    if "rt-" in k and k != "rt-component":
+                        headers[k] = ipc.get_headers()[k]
+                ser.set_headers(headers)
+                ser.set_body(ipc.get_body())
+                component.transport.write(ser.get_binary())
 
     elif itype == "request":
         if resource.startswith("component"):

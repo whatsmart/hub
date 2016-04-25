@@ -3,14 +3,19 @@
 import json
 import traceback
 from ..base import device
-from ..base.hipc import HIPCSerializer
-from ..base.jsonrpc import JsonrpcRequest, JsonrpcResponse, JsonrpcResult, JsonrpcError
-from .icomponent import IComponent
+from ..base.hipc import HIPCResponseSerializer
+from ..base import jsonrpc
+from . import icomponent
 
 class IDevice(object):
     def __init__(self, ipc):
-        self.ipc = ipc
-        self.hub = self.ipc.get_protocol().hub
+        self.ipc_version = ipc.get_version()
+        self.resource = ipc.get_resource()
+        self.routes = ipc.get_routes()
+        self.req = jsonrpc.RequestParser(ipc.get_body()).parse()
+        self.protocol = ipc.get_protocol()
+        self.hub = self.protocol.hub
+        self.icom = icomponent.IComponent(ipc)
 
     def add_device(self, dev):
         devices = self.hub.devices
@@ -39,6 +44,7 @@ class IDevice(object):
         for d in self.hub.devices:
             if d.id == did:
                 return d
+        return None
 
     def get_devices(self):
         return self.hub.devices
@@ -49,8 +55,7 @@ class IDevice(object):
             if d.id == did:
                 d.name = name
                 break
-        else:
-            return "device_not_found"
+
     def get_name(self, did):
         devices = self.hub.devices
         for d in devices:
@@ -65,8 +70,6 @@ class IDevice(object):
             if d.id == did:
                 d.position = position
                 break
-        else:
-            return "device_not_found"
 
     def get_position(self, did):
         devices = self.hub.devices
@@ -77,14 +80,8 @@ class IDevice(object):
             return None
 
     def handle_ipc(self):
-        resource = self.ipc.get_resource()
-        body = self.ipc.get_body()
-
-        obj = json.loads(body)
-
-        method = obj.get("method")
-        params = obj.get("params")
-        mid = obj.get("id")
+        method = self.req.method
+        params = self.req.params
 
         if method == "add_device":
             try:
@@ -98,120 +95,94 @@ class IDevice(object):
                 if isinstance(ndev.vender, str) and  isinstance(ndev.uniqid, str) \
                     and isinstance(ndev.hwversion, str) and isinstance(ndev.swversion, str) \
                     and isinstance(ndev.type, str) and isinstance(ndev.operations, list):
-                    icomp = IComponent(self.ipc)
-                    ndev.cid = icomp.get_component_by_transport(self.ipc.get_protocol().transport).id
+                    ndev.cid = self.icom.get_component_by_transport(self.protocol.transport).id
                     did = self.add_device(ndev)
                 else:
                     raise Exception
             except Exception:
-                print(traceback.print_exc())
-                je = JsonrpcError(jid = mid, code = 0, message = "unknown error")
-                body = je.get_string()
+                body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
             else:
-                jr = JsonrpcResult(jid = mid, result = did)
-                body = jr.get_string()
+                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = did).build()
             finally:
-                b = json.dumps(body, indent = 4)
-                ser = HIPCSerializer(mtype = "response", body = b, version = self.ipc.get_version())
-                self.ipc.get_protocol().transport.write(ser.get_binary())
+                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                self.protocol.transport.write(ser.get_binary())
 
         elif method == "remove_device":
             try:
                 if isinstance(params.get("id"), int):
-                    self.remove_device(params.get("id"), int)
+                    self.remove_device(params.get("id"))
                 else:
                     raise Exception
             except Exception:
-                je = JsonrpcError(jid = mid, code = 0, message = "unknown error")
-                body = je.get_string()
+                body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
             else:
-                jr = JsonrpcResult(jid = mid, result = None)
-                body = jr.get_string()
+                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
             finally:
-                b = json.dumps(body, indent = 4)
-                ser = HIPCSerializer(mtype = "response", body = b, version = self.ipc.get_version())
-                self.ipc.get_protocol().transport.write(ser.get_binary())
+                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                self.protocol.transport.write(ser.get_binary())
         elif method == "get_devices":
             try:
                 result = []
                 for dev in self.get_devices():
-                    d = {}
-                    d["id"] = dev.id
-                    d["vender"] = dev.vender
-                    d["uniqid"] = dev.uniqid
-                    d["hwversion"] = dev.hwversion
-                    d["swversion"] = dev.swversion
-                    d["type"] = dev.type
-                    d["operations"] = dev.operations
+                    d = {
+                        "id": dev.id,
+                        "vender": dev.vender,
+                        "uniqid": dev.uniqid,
+                        "hwversion": dev.hwversion,
+                        "swversion": dev.swversion,
+                        "type": dev.type,
+                        "operations": dev.operations
+                    }
                     result.append(d)
             except Exception:
-                je = JsonrpcError(jid = mid, code = 0, message = "unknown error", data = traceback.format_exc())
-                body = je.get_string()
+                body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
             else:
-                jr = JsonrpcResult(jid = mid, result = result)
-                body = jr.get_string()
+                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = result).build()
             finally:
-                b = json.dumps(body, indent = 4)
-#                print(b)
-                ser = HIPCSerializer(mtype = "response", body = b, version = self.ipc.get_version())
-                self.ipc.get_protocol().transport.write(ser.get_binary())
+                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                self.protocol.transport.write(ser.get_binary())
         elif method == "set_name":
             try:
-                did = int(resource.split("/")[1].strip())
+                did = int(self.resource.split("/")[1].strip())
                 if isinstance(did, int) and isinstance(params.get("name"), str):
                     ret = self.set_name(did, params.get("name"))
                 else:
                     raise Exception
-                if ret == "device_not_found":
-                    raise Exception
             except Exception:
-                je = JsonrpcError(jid = mid, code = 0, message = "unknown error", data=traceback.format_exc())
-                body = je.get_string()
+                body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
             else:
-                jr = JsonrpcResult(jid = mid, result = None)
-                body = jr.get_string()
+                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
             finally:
-                b = json.dumps(body, indent = 4)
-                ser = HIPCSerializer(mtype = "response", body = b, version = self.ipc.get_version())
-                self.ipc.get_protocol().transport.write(ser.get_binary())
+                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                self.protocol.transport.write(ser.get_binary())
         elif method == "get_name":
             try:
-                did = int(resource.split("/")[1].strip())
+                did = int(self.resource.split("/")[1].strip())
                 if isinstance(did, int):
                     name = self.get_name(did)
                 else:
                     raise Exception
-                if not name:
-                    raise Exception
             except Exception:
-                je = JsonrpcError(jid = mid, code = 0, message = "unknown error")
-                body = je.get_string()
+                body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
             else:
-                jr = JsonrpcResult(jid = mid, result = name)
-                body = jr.get_string()
+                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = name if name is not None else "").build()
             finally:
-                b = json.dumps(body, indent = 4)
-                ser = HIPCSerializer(mtype = "response", body = b, version = self.ipc.get_version())
-                self.ipc.get_protocol().transport.write(ser.get_binary())
+                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                self.protocol.transport.write(ser.get_binary())
         elif method == "set_position":
             try:
-                did = int(resource.split("/")[1].strip())
+                did = int(self.resource.split("/")[1].strip())
                 if isinstance(did, int) and isinstance(params.get("position"), str):
                     ret = self.set_position(did, params.get("position"))
                 else:
                     raise Exception
-                if ret == "device_not_found":
-                    raise Exception
             except Exception:
-                je = JsonrpcError(jid = mid, code = 0, message = "unknown error", data=traceback.format_exc())
-                body = je.get_string()
+                body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
             else:
-                jr = JsonrpcResult(jid = mid, result = None)
-                body = jr.get_string()
+                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
             finally:
-                b = json.dumps(body, indent = 4)
-                ser = HIPCSerializer(mtype = "response", body = b, version = self.ipc.get_version())
-                self.ipc.get_protocol().transport.write(ser.get_binary())
+                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                self.protocol.transport.write(ser.get_binary())
         elif method == "get_position":
             try:
                 did = int(resource.split("/")[1].strip())
@@ -219,15 +190,10 @@ class IDevice(object):
                     position = self.get_position(did)
                 else:
                     raise Exception
-                if not position:
-                    raise Exception
             except Exception:
-                je = JsonrpcError(jid = mid, code = 0, message = "unknown error")
-                body = je.get_string()
+                body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
             else:
-                jr = JsonrpcResult(jid = mid, result = position)
-                body = jr.get_string()
+                body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = position if position is not None else "").build()
             finally:
-                b = json.dumps(body, indent = 4)
-                ser = HIPCSerializer(mtype = "response", body = b, version = self.ipc.get_version())
-                self.ipc.get_protocol().transport.write(ser.get_binary())
+                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                self.protocol.transport.write(ser.get_binary())

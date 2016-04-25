@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 
-from hub.base.hipc import HIPCSerializer
+from hub.base.hipc import HIPCRequestSerializer
 
-ser = HIPCSerializer()
-#ser.set_version("2.0")
-ser.set_type("request")
-ser.set_resource("component")
-ser.set_origin(123)
+ser = HIPCRequestSerializer("device/1")
+#ser.set_header("rt-component", "0")
 ser.set_body('{"jsonrpc": "2.0","method": "register_component", "params": {"name": "wifi_link_adapter","type": "link_adapter"}, "id": 1}')
 print(ser.serialize())

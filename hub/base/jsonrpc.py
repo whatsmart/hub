@@ -2,58 +2,84 @@
 
 import json
 
-class JsonrpcRequest(object):
+class RequestParser(object):
     def __init__(self, req):
-        obj = json.loads(req)
+        self._req = req
+
+    def parse(self):
+        obj = json.loads(self._req)
 
         self.version = obj.get("jsonrpc")
         self.method = obj.get("method")
         self.params = obj.get("params")
         self.id = obj.get("id")
 
-        try:
-            assert(self.version)
-            assert(self.method)
-        except AssertionError:
-            print("jsonrpc request object must contain \"jsonrpc\" and \"method\" field")
+        return self
 
-class JsonrpcResponse(object):
+class RequestBuilder(object):
+    def __init__(self, version = "2.0", method = "", params = None, rpcid = None):
+        self.version = version
+        self.method = method
+        self.params = params
+        self.rpcid = rpcid
+
+    def build(self):
+        obj = {
+            "jsonrpc": self.version,
+            "method": self.method,
+        }
+        if self.params:
+            obj["params"] = self.params
+        if self.rpcid:
+            obj["id"] = self.rpcid
+
+        return json.dumps(obj)
+
+class ResponseParser(object):
     def __init__(self, res):
-        obj = json.loads(res)
+        self._res = res
+
+    def parse(self):
+        obj = json.loads(self._res)
 
         self.version = obj.get("jsonrpc")
         self.result = obj.get("result")
         self.error = obj.get("error")
         self.id = obj.get("id")
 
-        try:
-            assert(self.version)
-            assert(self.id)
-            assert(self.result or self.error)
-        except AssertionError:
-            print("jsonrpc response object must contain \"jsonrpc\", \"id\" and one of \"result\", \"error\" field")
+class ResultBuilder(object):
+    def __init__(self, version = "2.0", rpcid = None, result = None):
+        self.version = version
+        self.result = result
+        self.rpcid = rpcid
 
-class JsonrpcResult(object):
-    def __init__(self, version = "2.0", jid = None, result = None):
-        self.res = {
-            "jsonrpc": version,
-            "result": result,
-            "id": jid
+    def build(self):
+        obj = {
+            "jsonrpc": self.version,
+            "result": self.result,
+            "id": self.rpcid
         }
-    def get_string(self):
-        return self.res
 
-class JsonrpcError(object):
-    def __init__(self, version = "2.0", jid = None, code = None, message = None, data = None):
-        self.err = {
-            "jsonrpc": version,
+        return json.dumps(obj)
+
+class ErrorBuilder(object):
+    def __init__(self, version = "2.0", rpcid = None, code = None, message = "", data = None):
+        self.version = version
+        self.rpcid = rpcid
+        self.code = code
+        self.message = message
+        self.data = data
+
+    def build(self):
+        obj = {
+            "jsonrpc": self.version,
             "error": {
-                "code": code,
-                "message": message,
+                "code": self.code,
+                "message": self.message,
             },
-            "id": jid
+            "id": self.rpcid
         }
-        if data:
-            self.err["error"]["data"] = data
-    def get_string(self):
-        return self.err
+        if self.data:
+            obj["error"]["data"] = data
+
+        return json.dumps(obj)

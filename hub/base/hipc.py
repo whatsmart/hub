@@ -8,9 +8,7 @@ class HIPCParser(object):
         self._type = ""
         self._version = ""
         self._resource = ""
-        self._length = None
-        self._checksum = None
-        self._origin = ""
+        self._headers = {}
         self._body = ""
         self._data = ""
         self._cursor = 0
@@ -29,7 +27,6 @@ class HIPCParser(object):
                     self._data = self._data[index:]  
 
             for index, c in enumerate(self._data):
-#                print(index)
                 if c == "\n" and self._data[index-1] == "\r":
                     line = self._data[self._cursor:index]
 
@@ -37,59 +34,52 @@ class HIPCParser(object):
                         tags = line.split(" ")
                         self._version = tags[0].strip().split("/")[1].strip()
                         self._type = tags[1].strip()
-                        self._resource = tags[2].strip()
-#                        print(self._resource)
-                    if line.strip().startswith("length"):
-                        l = line.split(":")
-                        self._length = int(l[1].strip())
-#                        print(self._length)
-                    if line.strip().startswith("checksum"):
-                        s = line.split(":")
-                        self._checksum = int(s[1].strip())
-                    if line.strip().startswith("origin"):
-                        p = line.split(":")
-                        self._origin = int(p[1].strip())
-                    if self._cursor == index - 1:
-#                        print("cound tem");
-                        self._state = "header_found"
-                        self._cursor = index + 1
-                        break;
+                        if self._type == "request":
+                            self._resource = tags[2].strip()
+                    else:
+                        if self._cursor != index - 1:
+                            pair = line.strip().split(":")
+                            self._headers[pair[0].strip()] = pair[1].strip()
+                        elif self._cursor == index - 1:
+                            self._state = "header_found"
+                            self._cursor = index + 1
+                            break;
                     self._cursor = index + 1
 
         if self._state == "header_found":
-            if len(self._data) - self._cursor >= self._length:
-                self._body = self._data[self._cursor:self._cursor+self._length]
+            length = int(self.get_header("length"))
+            checksum = int(self.get_header("checksum"))
+            assert(length and checksum)
+            if len(self._data) - self._cursor >= length:
+                self._body = self._data[self._cursor:self._cursor+length]
                 sum = binascii.crc32(self._body.encode("utf-8"))
-                if sum != self._checksum:
+                if sum != checksum:
                     self._data = self._data[4:]
                     self.parse(bytes())
                 else:
                     self._state = "finished"
                     self._protocol.handle_ipc(self)
 
-                    if len(self._data) - self._cursor > self._length:
-#                       print(len(self._data) - self._cursor - self._length)
+                    if len(self._data) - self._cursor > length:
                         self.get_ready()
-#                       print(self._data)
                         self.parse(bytes())
                     else:
                         self.get_ready()
 
 
     def get_ready(self):
-        
+        length = int(self.get_header("length"))
+        assert(length)
         self._resource = ""
         self._body = ""
-        if len(self._data) - self._cursor > self._length:
-            self._data = self._data[self._cursor+self._length:]
+        if len(self._data) - self._cursor > length:
+            self._data = self._data[self._cursor+length:]
         else:
             self._data = ""
         self._type = ""
         self._version = ""
-        self._checksum = None
-        self._id = None
+        self._headers = {}
         self._cursor = 0
-        self._length = None
         self._state = "ready"
 
     def set_protocol(self, protocol):
@@ -107,65 +97,95 @@ class HIPCParser(object):
     def get_resource(self):
         return self._resource
 
-    def get_length(self):
-        return self._length
+    def get_header(self, name):
+        return self._headers.get(name)
 
-    def get_checksum(self):
-        return self._checksum
+    def get_headers(self):
+        return self._headers
 
-    def get_origin(self):
-        return self._origin
+    def get_routes(self):
+        routes = {}
+        for k in self._headers.keys():
+            if "rt-" in k:
+                routes[k] = self._headers[k]
+        return routes
 
     def get_body(self):
         return self._body
 
-class HIPCSerializer(object):
-    def __init__(self, mtype = "", version = "", resource = "", origin = "", body = ""):
-        self._version = version
-        self._type = mtype
-        self._resource = resource
+class HIPCRequestSerializer(object):
+    def __init__(self, resource = "", version = "", headers = {}, body = ""):
+        self._version = version #str
+        self._resource = resource #str
         self._length = None
         self._checksum = None
-        self._origin = origin
-        self._body = body
+        self._headers = headers #dict, str, str
+        self._body = body #str
 
     def set_version(self, version):
         self._version = version
 
-    def set_type(self, ptype):
-        self._type = ptype
-
     def set_resource(self, resource):
         self._resource = resource
 
-    def set_origin(self, origin):
-        self._origin = origin
+    def set_header(self, name, value):
+        self._headers[name] = value
+
+    def set_headers(self, headers):
+        self._headers = headers
 
     def set_body(self, body):
         self._body = body
 
     def serialize(self):
-        try:
-            assert self._type
-            if self._type == "request":
-                assert self._resource
-        except AssertionError:
-            print("Please confirm type, resource are not null")
-
         be = self._body.encode("utf-8")
         s = ""
-        if self._version:
-            s += "HIPC/" + self._version + " " + self._type
-        else:
-            s += "HIPC/1.0" + " " + self._type
-        if self._type == "response":
-            s += "\r\n"
-        elif self._type == "request":
-            s += " " + self._resource + "\r\n"
+        s += "HIPC/" + (self._version if self._version else "1.0") + " request" + (" " + self._resource if self._resource else "") + "\r\n"
         s += "length: " + str(len(be)) + "\r\n"
         s += "checksum: " + str(binascii.crc32(be)) + "\r\n"
-        if self._origin:
-            s += "origin: " + str(self._origin) + "\r\n"
+        if self._headers:
+            for k in self._headers.keys():
+                s += k + ": " + self._headers[k] + "\r\n"
+        s += "\r\n"
+        s += self._body
+        return s
+
+    def get_binary(self):
+        return self.serialize().encode("utf-8")
+
+    def get_string(self):
+        return self.serialize()
+
+class HIPCResponseSerializer(object):
+    def __init__(self, version = "", headers = {}, body = ""):
+        self._version = version #str
+        self._length = None
+        self._checksum = None
+        self._headers = headers #dict, str, str
+        self._body = body #str
+
+    def set_version(self, version):
+        self._version = version
+
+    def set_header(self, name, value):
+        self._headers[name] = value
+
+    def set_headers(self, headers):
+        self._headers = headers
+
+    def set_body(self, body):
+        self._body = body
+
+    def serialize(self):
+        be = self._body.encode("utf-8")
+        s = ""
+        s += "HIPC/" + (self._version if self._version else "1.0") + " response\r\n"
+        s += "length: " + str(len(be)) + "\r\n"
+        s += "checksum: " + str(binascii.crc32(be)) + "\r\n"
+        if self._headers:
+            for k in self._headers.keys():
+                if k != "length" and k != "checksum":
+                    s += k + ": " + self._headers[k] + "\r\n"
         s += "\r\n"
         s += self._body
         return s
