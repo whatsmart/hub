@@ -8,7 +8,7 @@ from ..base import jsonrpc
 class ILightingControl(object):
     def __init__(self, ipc):
         self.ipc_version = ipc.get_version()
-        self.routes = ipc.get_routes()
+        self.dest = ipc.get_dest()
         self.req = jsonrpc.RequestParser(ipc.get_body()).parse()
         self.protocol = ipc.get_protocol()
         self.hub = self.protocol.hub
@@ -16,18 +16,19 @@ class ILightingControl(object):
         self.idev = idevice.IDevice(ipc)
         self.icom = icomponent.IComponent(ipc)
         self.ocid = self.icom.get_component_by_transport(self.protocol.transport).id
+        self.dest = ipc.get_dest()
 
     def power_on(self):
         try:
             tc = self.icom.get_component(self.idev.get_device(self.did).cid).transport
         except Exception:
             body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
+            ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body).get_binary()
             self.protocol.transport.write(ser)
         else:
             body = jsonrpc.RequestBuilder(method = "power_on", rpcid = self.req.id).build()
-            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, headers = self.routes, body = body)
-            ser.set_header("rt-component", str(self.ocid))
+            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, body = body)
+            ser.set_header("origin", self.dest + "@hub/" + self.ocid)
             tc.write(ser.get_binary())
 
     def power_off(self):
@@ -35,12 +36,12 @@ class ILightingControl(object):
             tc = self.icom.get_component(self.idev.get_device(self.did).cid).transport
         except Exception:
             body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
+            ser = HIPCResponseSerializer(self.dest, version = self.ipc_version, body = body).get_binary()
             self.protocol.transport.write(ser)
         else:
             body = jsonrpc.RequestBuilder(method = "power_off", rpcid = self.req.id).build()
-            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, headers = self.routes, body = body)
-            ser.set_header("rt-component", str(self.ocid))
+            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, body = body)
+            ser.set_header("origin", self.dest + "@hub/" + self.ocid)
             tc.write(ser.get_binary())
 
     def get_power_state(self):
@@ -48,12 +49,12 @@ class ILightingControl(object):
             tc = self.icom.get_component(self.idev.get_device(self.did).cid).transport
         except Exception:
             body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
+            ser = HIPCResponseSerializer(self.dest, version = self.ipc_version, body = body).get_binary()
             self.protocol.transport.write(ser)
         else:
             body = jsonrpc.RequestBuilder(method = "get_power_state", rpcid = self.req.id).build()
-            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, headers = self.routes, body = body)
-            ser.set_header("rt-component", str(self.ocid))
+            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, body = body)
+            ser.set_header("origin", self.dest + "@hub/" + self.ocid)
             tc.write(ser.get_binary())
 
     def set_color(self, color):
@@ -61,12 +62,12 @@ class ILightingControl(object):
             tc = self.icom.get_component(self.idev.get_device(self.did).cid).transport
         except Exception:
             body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
+            ser = HIPCResponseSerializer(self.dest, version = self.ipc_version, body = body).get_binary()
             self.protocol.transport.write(ser)
         else:
             body = jsonrpc.RequestBuilder(method = "set_color", rpcid = self.req.id, params = {"color": color}).build()
-            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, headers = self.routes, body = body)
-            ser.set_header("rt-component", str(self.ocid))
+            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, body = body)
+            ser.set_header("origin", self.dest + "@hub/" + self.ocid)
             tc.write(ser.get_binary())
 
     def get_color(self):
@@ -74,12 +75,12 @@ class ILightingControl(object):
             tc = self.icom.get_component(self.idev.get_device(self.did).cid).transport
         except Exception:
             body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
+            ser = HIPCResponseSerializer(self.dest, version = self.ipc_version, body = body).get_binary()
             self.protocol.transport.write(ser)
         else:
             body = jsonrpc.RequestBuilder(method = "get_color", rpcid = self.req.id).build()
-            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, headers = self.routes, body = body)
-            ser.set_header("rt-component", str(self.ocid))
+            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, body = body)
+            ser.set_header("origin", self.dest + "@hub/" + self.ocid)
             tc.write(ser.get_binary())
 
     def set_brightness(self, brightness):
@@ -87,12 +88,12 @@ class ILightingControl(object):
             tc = self.icom.get_component(self.idev.get_device(self.did).cid).transport
         except Exception:
             body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
+            ser = HIPCResponseSerializer(self.dest, version = self.ipc_version, body = body).get_binary()
             self.protocol.transport.write(ser)
         else:
             body = jsonrpc.RequestBuilder(method = "set_brightness", rpcid = self.req.id, params = {"brightness": brightness}).build()
-            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, headers = self.routes, body = body)
-            ser.set_header("rt-component", str(self.ocid))
+            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, body = body)
+            ser.set_header("origin", self.dest + "@hub/" + self.ocid)
             tc.write(ser.get_binary())
 
     def get_brightness(self):
@@ -100,12 +101,12 @@ class ILightingControl(object):
             tc = self.icom.get_component(self.idev.get_device(self.did).cid).transport
         except Exception:
             body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
+            ser = HIPCResponseSerializer(self.dest, version = self.ipc_version, body = body).get_binary()
             self.protocol.transport.write(ser)
         else:
             body = jsonrpc.RequestBuilder(method = "get_brightness", rpcid = self.req.id).build()
-            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, headers = self.routes, body = body)
-            ser.set_header("rt-component", str(self.ocid))
+            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, body = body)
+            ser.set_header("origin", self.dest + "@hub/" + self.ocid)
             tc.write(ser.get_binary())
 
     def handle_ipc(self):

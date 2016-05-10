@@ -14,21 +14,25 @@ def dispatch_ipc(ipc):
     hub = ipc.get_protocol().hub
     icom = icomponent.IComponent(ipc)
     resource = ipc.get_resource()
+    route = ipc.get_last_route()
     protocol = ipc.get_protocol()
 
     if itype == "response":
-        if "rt-component" in ipc.get_headers():
-            cid = int(ipc.get_header("rt-component"))
-            component = icom.get_component(cid)
-            if component:
-                ser = HIPCResponseSerializer()
-                ser.set_version(ipc.get_version())
-                for k in ipc.get_headers().keys():
-                    if "rt-" in k and k != "rt-component":
-                        headers[k] = ipc.get_headers()[k]
-                ser.set_headers(headers)
-                ser.set_body(ipc.get_body())
-                component.transport.write(ser.get_binary())
+        if route:
+            if route.find("hub/"):
+                cid = int(route[4:])
+                component = icom.get_component(cid)
+                if component:
+                    ser = HIPCResponseSerializer()
+                    dest = ipc.get_dest().split("@")
+                    dest = "@".join(dest[0:len(dest)-1])
+                    ser.set_version(dest = dest, version = ipc.get_version())
+                    ser.set_headers(headers)
+                    ser.set_body(ipc.get_body())
+                    component.transport.write(ser.get_binary())
+        else:
+            #handle response by hub
+            pass
 
     elif itype == "request":
         if resource.startswith("component"):

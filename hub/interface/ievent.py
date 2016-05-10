@@ -8,7 +8,7 @@ class IEvent(object):
 
     def __init__(self, ipc):
         self.ipc_version = ipc.get_version()
-        self.routes = ipc.get_routes()
+        self.dest = ipc.get_dest()
         self.req = jsonrpc.RequestParser(ipc.get_body()).parse()
         self.protocol = ipc.get_protocol()
         self.hub = self.protocol.hub
@@ -41,7 +41,7 @@ class IEvent(object):
         else:
             body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
         finally:
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+            ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
             sb = ser.get_binary()
             self.protocol.transport.write(sb)
 

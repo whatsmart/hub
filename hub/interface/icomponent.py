@@ -9,7 +9,6 @@ class IComponent(object):
     def __init__(self, ipc):
         if ipc._state == "finished":
             self.ipc_version = ipc.get_version()
-            self.routes = ipc.get_routes()
             self.req = jsonrpc.RequestParser(ipc.get_body()).parse()
         self.protocol = ipc.get_protocol()
         self.hub = self.protocol.hub
@@ -59,5 +58,6 @@ class IComponent(object):
         else:
             body = jsonrpc.ResultBuilder(result = cid, rpcid = self.req.id).build()
         finally:
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
-            self.protocol.transport.write(ser)
+            ser = HIPCResponseSerializer(version = self.ipc_version, body = body)
+            print(ser.get_string())
+            self.protocol.transport.write(ser.get_binary())

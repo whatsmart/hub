@@ -12,7 +12,7 @@ class IDevice(object):
     def __init__(self, ipc):
         self.ipc_version = ipc.get_version()
         self.resource = ipc.get_resource()
-        self.routes = ipc.get_routes()
+        self.dest = ipc.get_dest()
         self.req = jsonrpc.RequestParser(ipc.get_body()).parse()
         self.protocol = ipc.get_protocol()
         self.hub = self.protocol.hub
@@ -110,11 +110,11 @@ class IDevice(object):
                     raise Exception
             except Exception:
                 body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
-                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
                 self.protocol.transport.write(ser.get_binary())
             else:
                 body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = did).build()
-                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
                 self.protocol.transport.write(ser.get_binary())
                 self.iev.report_event(event)
 
@@ -133,11 +133,11 @@ class IDevice(object):
             except Exception:
                 traceback.print_exc()
                 body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
-                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
                 self.protocol.transport.write(ser.get_binary())
             else:
                 body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
-                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
                 self.protocol.transport.write(ser.get_binary())
                 self.iev.report_event(event)
 
@@ -160,7 +160,8 @@ class IDevice(object):
             else:
                 body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = result).build()
             finally:
-                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
+                #print(ser.get_string())
                 self.protocol.transport.write(ser.get_binary())
         elif method == "set_name":
             try:
@@ -174,7 +175,7 @@ class IDevice(object):
             else:
                 body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
             finally:
-                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
                 self.protocol.transport.write(ser.get_binary())
         elif method == "get_name":
             try:
@@ -189,7 +190,7 @@ class IDevice(object):
             else:
                 body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = name if name is not None else "").build()
             finally:
-                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
                 self.protocol.transport.write(ser.get_binary())
         elif method == "set_position":
             try:
@@ -203,7 +204,7 @@ class IDevice(object):
             else:
                 body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
             finally:
-                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
                 self.protocol.transport.write(ser.get_binary())
         elif method == "get_position":
             try:
@@ -218,5 +219,5 @@ class IDevice(object):
             else:
                 body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = position if position is not None else "").build()
             finally:
-                ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+                ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
                 self.protocol.transport.write(ser.get_binary())

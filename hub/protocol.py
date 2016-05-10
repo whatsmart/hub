@@ -46,6 +46,7 @@ class HubProtocol(asyncio.Protocol):
         self.hub.components.remove(c)
 
     def data_received(self, data):
+        print(data)
         self.ipc.parse(data)
 
     def handle_ipc(self, ipc):
@@ -54,8 +55,8 @@ class HubProtocol(asyncio.Protocol):
         cipc._version = copy.copy(ipc.get_version())
         cipc._resource = copy.copy(ipc.get_resource())
         cipc._headers = copy.deepcopy(ipc.get_headers())
+        cipc._dest = copy.copy(ipc.get_dest())
         cipc._body = copy.copy(ipc.get_body())
-        cipc._resource = copy.copy(ipc.get_resource())
         cipc._protocol = self
         cipc._state = "finished"
 

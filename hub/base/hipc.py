@@ -8,6 +8,7 @@ class HIPCParser(object):
         self._type = ""
         self._version = ""
         self._resource = ""
+        self._dest = "";
         self._headers = {}
         self._body = ""
         self._data = ""
@@ -36,6 +37,8 @@ class HIPCParser(object):
                         self._type = tags[1].strip()
                         if self._type == "request":
                             self._resource = tags[2].strip()
+                        elif self._type == "response" and len(tags) > 3:
+                            self._dest = tags[2].strip()
                     else:
                         if self._cursor != index - 1:
                             pair = line.strip().split(":")
@@ -49,6 +52,7 @@ class HIPCParser(object):
         if self._state == "header_found":
             length = int(self.get_header("length"))
             checksum = int(self.get_header("checksum"))
+            print(length, checksum)
             assert(length and checksum)
             if len(self._data) - self._cursor >= length:
                 self._body = self._data[self._cursor:self._cursor+length]
@@ -91,24 +95,28 @@ class HIPCParser(object):
     def get_version(self):
         return self._version
 
+    def get_last_route(self):
+        routes = self._dest.split("@")
+        if len(routes) > 0:
+            return routes[len(routes)-1]
+
+    def get_dest(self):
+        return self._dest
+
     def get_type(self):
         return self._type
 
     def get_resource(self):
         return self._resource
 
+    def get_dest(self):
+        return self._dest
+
     def get_header(self, name):
         return self._headers.get(name)
 
     def get_headers(self):
         return self._headers
-
-    def get_routes(self):
-        routes = {}
-        for k in self._headers.keys():
-            if "rt-" in k:
-                routes[k] = self._headers[k]
-        return routes
 
     def get_body(self):
         return self._body
@@ -157,8 +165,9 @@ class HIPCRequestSerializer(object):
         return self.serialize()
 
 class HIPCResponseSerializer(object):
-    def __init__(self, version = "", headers = {}, body = ""):
+    def __init__(self, dest = "", version = "", headers = {}, body = ""):
         self._version = version #str
+        self._dest = dest
         self._length = None
         self._checksum = None
         self._headers = headers #dict, str, str
@@ -166,6 +175,9 @@ class HIPCResponseSerializer(object):
 
     def set_version(self, version):
         self._version = version
+
+    def set_dest(self, dest):
+        self._dest = dest
 
     def set_header(self, name, value):
         self._headers[name] = value
@@ -179,7 +191,7 @@ class HIPCResponseSerializer(object):
     def serialize(self):
         be = self._body.encode("utf-8")
         s = ""
-        s += "HIPC/" + (self._version if self._version else "1.0") + " response\r\n"
+        s += "HIPC/" + (self._version if self._version else "1.0") + " response" + (" " + self._dest if self._dest else "") + "\r\n"
         s += "length: " + str(len(be)) + "\r\n"
         s += "checksum: " + str(binascii.crc32(be)) + "\r\n"
         if self._headers:

@@ -10,11 +10,11 @@ class IMessage(object):
 
     def __init__(self, ipc):
         self.ipc_version = ipc.get_version()
-        self.routes = ipc.get_routes()
         self.req = jsonrpc.RequestParser(ipc.get_body()).parse()
         self.protocol = ipc.get_protocol()
         self.hub = self.protocol.hub
         self.iev = ievent.IEvent(ipc)
+        self.dest = ipc.get_dest()
 
     def get_message(self, mid):
         try:
@@ -26,7 +26,7 @@ class IMessage(object):
         else:
             body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = msg).build()
         finally:
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+            ser = HIPCResponseSerializer(dest = self.dest, version = self.ipc_version, body = body)
             sb = ser.get_binary()
             self.protocol.transport.write(sb)
 
@@ -47,11 +47,11 @@ class IMessage(object):
         except Exception:
             traceback.print_exc()
             body = jsonrpc.ErrorBuilder(rpcid = self.req.id, code = 0, message = "unknown error").build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+            ser = HIPCResponseSerializer(self.dest, version = self.ipc_version, body = body)
             self.protocol.transport.write(ser.get_binary())
         else:
             body = jsonrpc.ResultBuilder(rpcid = self.req.id, result = None).build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body)
+            ser = HIPCResponseSerializer(self.dest, version = self.ipc_version, body = body)
             self.protocol.transport.write(ser.get_binary())
             self.iev.report_event(event)
 

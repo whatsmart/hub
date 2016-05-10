@@ -7,7 +7,7 @@ class ILinkAdapterControl(object):
 
     def __init__(self, ipc):
         self.ipc_version = ipc.get_version()
-        self.routes = ipc.get_routes()
+        self.dest = ipc.get_dest
         self.req = jsonrpc.RequestParser(ipc.get_body()).parse()
         self.protocol = ipc.get_protocol()
         self.hub = self.protocol.hub
@@ -18,18 +18,17 @@ class ILinkAdapterControl(object):
 
     def set_visibility(self, visible, time):
         body = jsonrpc.RequestBuilder(method = "set_visibility", params = {"visible": visible, "time": time}, rpcid = self.req.id)
-        ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, headers = self.routes, body = body)
 
         try:
             tc = self.icom.get_component(self.idev.get_device(self.did).cid).transport
         except Exception:
             body = jsonrpc.ErrorBuilder(code = 0, message = "unknown error", rpcid = self.req.id).build()
-            ser = HIPCResponseSerializer(version = self.ipc_version, headers = self.routes, body = body).get_binary()
+            ser = HIPCResponseSerializer(self.dest, version = self.ipc_version, body = body).get_binary()
             self.protocol.transport.write(ser)
         else:
             body = jsonrpc.RequestBuilder(method = "set_visibility", params = {"visible": visible, "time": time}, rpcid = self.req.id).build()
-            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, headers = self.routes, body = body)
-            ser.set_header("rt-component", str(self.ocid))
+            ser = HIPCRequestSerializer(resource = "control/"+str(self.did), version = self.ipc_version, body = body)
+            ser.set_header("origin", self.dest + "@hub/" + self.ocid)
             tc.write(ser.get_binary())
 
     def handle_ipc(self):
